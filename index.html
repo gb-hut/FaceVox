@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<!-- VERSION 2026-11-23 v3: DataPipe extension-pipe (Zenodo), random subject_id, 48 stimuli -->
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Perception des voix</title>
+
+  <!-- jsPsych core + plugins. "@8" / "@2" = latest release of that major version.
+       Une fois le pilote validé, fixez les versions exactes (ex. jspsych@8.2.1)
+       pour que l'expérience ne change pas en cours d'étude. -->
+  <script src="https://unpkg.com/jspsych@8"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-preload@2"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-button-response@2"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-audio-button-response@2"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-survey-html-form@2"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-survey-text@2"></script>
+  <script src="https://unpkg.com/@jspsych/extension-pipe@0.2.0"></script>
+  <link rel="stylesheet" href="https://unpkg.com/jspsych@8/css/jspsych.css">
+
+  <style>
+    .info-form { text-align: left; max-width: 480px; margin: 0 auto; }
+    .info-form .field { margin: 1.4em 0; }
+    .info-form label.q { display: block; font-weight: bold; margin-bottom: 0.4em; }
+    .info-form input[type="number"] { width: 6em; font-size: 1em; padding: 0.2em; }
+    .info-form .opt { display: block; margin: 0.2em 0; }
+  </style>
+</head>
+<body></body>
+<script>
+// =====================================================================
+// 1. PARAMÈTRES  (à modifier)
+// =====================================================================
+
+// Identifiant d'expérience DataPipe (tableau de bord DataPipe)
+const EXPERIMENT_ID = "ICVoEDS9wpgQ";
+
+// URL de fin d'étude Prolific (Prolific > étude > "Study completion" > "Redirect to URL")
+const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?cc=XXXXXXX";
+
+// Dossier des fichiers audio, relatif à index.html.
+// "" = les .wav sont à la racine du dépôt, à côté de index.html.
+// Si vous les mettez dans un dossier, par ex. "stimuli/", écrivez "stimuli/".
+// ATTENTION : GitHub Pages distingue majuscules et minuscules ("Allo1.wav" != "allo1.wav").
+const STIMULUS_DIR = "";
+
+// Chaque mot existe en 3 versions : <id>1.wav, <id>2.wav, <id>3.wav
+// "id" = début du nom de fichier ; "word" = mot prononcé (sert à corriger la question d'attention).
+const WORDS = [
+  { id: "Allo",     word: "allô" },
+  { id: "Alors",    word: "alors" },
+  { id: "Attends",  word: "attends" },
+  { id: "Beaucoup", word: "beaucoup" },
+  { id: "Bientot",  word: "bientôt" },
+  { id: "Bonjour",  word: "bonjour" },
+  { id: "Bravo",    word: "bravo" },
+  { id: "Demain",   word: "demain" },
+  { id: "Enfin",    word: "enfin" },
+  { id: "Jamais",   word: "jamais" },
+  { id: "Merci",    word: "merci" },
+  { id: "Salut",    word: "salut" },
+  { id: "Vas-y",    word: "vas-y" },
+  { id: "Venez",    word: "venez" },
+  { id: "Vraiment", word: "vraiment" },
+  { id: "Ca-va",    word: "ça va" }    // fichiers : Ca-va1.wav, Ca-va2.wav, Ca-va3.wav (sans la cédille)
+];
+const N_VERSIONS = 3;
+
+// Liste finale : 16 mots x 3 versions = 48 stimuli
+const STIMULI = [];
+WORDS.forEach((w) => {
+  for (let v = 1; v <= N_VERSIONS; v++) {
+    STIMULI.push({ file: `${STIMULUS_DIR}${w.id}${v}.wav`, word: w.word });
+  }
+});
+
+const N_ATTENTION_CHECKS = 3;          // nombre de questions d'attention (positions aléatoires)
+// Enregistrer l'identifiant Prolific (PROLIFIC_PID) et SESSION_ID dans les données ?
+// false = non (recommandé si la réglementation sur les données personnelles est stricte).
+// Mettre true seulement si vous en avez besoin, par ex. pour repérer les doublons.
+const SAVE_PROLIFIC_ID = false;
+
+const RANDOMIZE_BUTTON_SIDE = true;    // ordre gauche/droite Oui/Non tiré au sort une fois par participant
+
+// =====================================================================
+// 2. INITIALISATION
+// =====================================================================
+const jsPsych = initJsPsych({
+  // L'extension DataPipe enregistre les données automatiquement à la fin de l'expérience
+  // (aucun essai "save" n'est nécessaire). Elle termine l'envoi AVANT on_finish ci-dessous.
+  extensions: [
+    {
+      type: jsPsychExtensionPipe,
+      params: {
+        experiment_id: EXPERIMENT_ID,
+        filename: () => `${subject_id}.csv`
+      }
+    }
+  ],
+  on_finish: () => {
+    // Exécuté après l'enregistrement DataPipe : retour vers Prolific.
+    jsPsych.getDisplayElement().innerHTML =
+      "<p>Merci ! Vous allez être redirigé(e) vers Prolific...</p>";
+    setTimeout(() => { window.location.href = PROLIFIC_COMPLETION_URL; }, 1000);
+  }
+});
+
+// Identifiant aléatoire du participant : sert de nom de fichier et de colonne subject_id.
+// (Il n'est pas l'identifiant Prolific, donc le nom de fichier ne contient pas de donnée personnelle.)
+const subject_id = jsPsych.randomization.randomID(10);
+
+// Prolific ajoute automatiquement PROLIFIC_PID, STUDY_ID et SESSION_ID à l'URL de l'étude.
+const prolific_pid = jsPsych.data.getURLVariable("PROLIFIC_PID");
+
+// Ordre des boutons de réponse (contrebalance un éventuel biais gauche/droite).
+const yes_first = RANDOMIZE_BUTTON_SIDE ? jsPsych.randomization.sampleBernoulli(0.5) === 1 : true;
+const answer_choices = yes_first ? ["Oui", "Non"] : ["Non", "Oui"];
+
+// Ces colonnes sont ajoutées à chaque ligne du fichier de données.
+jsPsych.data.addProperties({
+  subject_id: subject_id,
+  study_id: jsPsych.data.getURLVariable("STUDY_ID") || "",
+  button_order: answer_choices.join("-")
+});
+if (SAVE_PROLIFIC_ID) {
+  jsPsych.data.addProperties({
+    prolific_pid: prolific_pid || "",
+    session_id: jsPsych.data.getURLVariable("SESSION_ID") || ""
+  });
+}
+
+// Normalise un mot pour la correction : minuscules, sans accents, tirets/apostrophes/espaces
+// multiples ramenés à un seul espace ("vas-y", "vas y" et "Vas  y" sont équivalents).
+const normalize = (s) =>
+  (s || "").toString()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[-\u2010\u2011'\u2019\s]+/g, " ")
+    .trim();
+
+const timeline = [];
+
+// =====================================================================
+// 3. PRÉCHARGEMENT DES SONS
+// =====================================================================
+timeline.push({
+  type: jsPsychPreload,
+  audio: STIMULI.map((s) => s.file),
+  message: "<p>Chargement de l'expérience, veuillez patienter. Cela peut prendre un moment...</p>",
+  show_progress_bar: true,
+  max_load_time: 180000,   // ms
+  error_message: "<p>L'expérience n'a pas pu être chargée. Vérifiez votre connexion et rechargez la page.</p>"
+});
+
+// =====================================================================
+// 4. INFORMATIONS SUR LE PARTICIPANT
+// =====================================================================
+timeline.push({
+  type: jsPsychSurveyHtmlForm,
+  preamble: "<h2>Informations sur le participant</h2>",
+  html: `
+    <div class="info-form">
+      <div class="field">
+        <label class="q" for="age">Âge (en années)</label>
+        <input type="number" id="age" name="age" min="18" max="120" step="1" required>
+      </div>
+      <div class="field">
+        <label class="q">Sexe</label>
+        <label class="opt"><input type="radio" name="sex" value="female" required> Femme</label>
+        <label class="opt"><input type="radio" name="sex" value="male"> Homme</label>
+        <label class="opt"><input type="radio" name="sex" value="other_or_not_disclosed"> Autre / ne souhaite pas répondre</label>
+      </div>
+      <div class="field">
+        <label class="q">Le français est-il votre langue maternelle ?</label>
+        <label class="opt"><input type="radio" name="native_french" value="yes" required> Oui</label>
+        <label class="opt"><input type="radio" name="native_french" value="no"> Non</label>
+      </div>
+    </div>`,
+  button_label: "Continuer",
+  data: { task: "participant_info" },
+  on_finish: (data) => {
+    // Les réponses deviennent des colonnes sur chaque ligne du fichier final.
+    jsPsych.data.addProperties({
+      age: parseInt(data.response.age, 10),
+      sex: data.response.sex,
+      native_french: data.response.native_french
+    });
+  }
+});
+
+// =====================================================================
+// 5. CONSIGNES
+// =====================================================================
+timeline.push({
+  type: jsPsychHtmlButtonResponse,
+  stimulus: `
+    <div style="max-width: 640px; margin: 0 auto; text-align: left;">
+      <h2>Consignes</h2>
+      <p>Vous entendrez différentes voix. Pour chacune d'entre elles, vous devrez déterminer si elle semblait humaine ou non.</p>
+    </div>`,
+  choices: ["Commencer"],
+  data: { task: "instructions" }
+});
+
+// =====================================================================
+// 6. ESSAIS (un son + une question oui/non) + QUESTIONS D'ATTENTION
+// =====================================================================
+const order = jsPsych.randomization.shuffle(STIMULI);
+
+// Après quels essais (positions) poser la question d'attention : tirage aléatoire.
+const n_checks = Math.min(N_ATTENTION_CHECKS, order.length);
+const check_after = new Set(
+  jsPsych.randomization.sampleWithoutReplacement([...Array(order.length).keys()], n_checks)
+);
+
+order.forEach((s, i) => {
+  // Essai : on entend la voix, puis on répond Oui/Non.
+  timeline.push({
+    type: jsPsychAudioButtonResponse,
+    stimulus: s.file,
+    choices: answer_choices,
+    prompt: "<p><b>Cette voix semble-t-elle humaine&nbsp;?</b></p>",
+    response_allowed_while_playing: false,   // les boutons s'activent à la fin du son
+    trial_ends_after_audio: false,
+    data: { task: "voice", stimulus_file: s.file },
+    on_finish: (data) => {
+      // response = index du bouton cliqué ; converti en libellé puis en 1 (oui) / 0 (non)
+      data.response_label = answer_choices[data.response];
+      data.human_response = data.response_label === "Oui" ? 1 : 0;
+    }
+  });
+
+  // Question d'attention juste après cet essai (si tirée au sort).
+  if (check_after.has(i)) {
+    timeline.push({
+      type: jsPsychSurveyText,
+      questions: [{
+        prompt: "Quel était le mot que vous venez d'entendre&nbsp;?",
+        name: "word",
+        required: true,
+        columns: 30,
+        rows: 1
+      }],
+      button_label: "Continuer",
+      data: { task: "attention", stimulus_file: s.file, expected_word: s.word },
+      on_finish: (data) => {
+        data.typed_word = data.response.word;
+        // 1 = correct, 0 = incorrect, "" = pas de mot attendu renseigné
+        data.attention_correct = s.word ? (normalize(data.typed_word) === normalize(s.word) ? 1 : 0) : "";
+        data.response = "";   // évite une colonne "response" illisible dans le CSV
+      }
+    });
+  }
+});
+
+// =====================================================================
+// 7. ENREGISTREMENT DES DONNÉES
+//    Rien à faire ici : l'extension DataPipe (voir initJsPsych) envoie les données
+//    à la fin de l'expérience, avant la redirection vers Prolific.
+// =====================================================================
+
+// =====================================================================
+// 8. LANCEMENT
+// =====================================================================
+jsPsych.run(timeline);
+</script>
+</html>
